@@ -1,0 +1,11 @@
+# Installer d'abord PyTorch avec CUDA adapté à votre GPU : https://pytorch.org/get-started/locally/
+TotalSegmentator>=2.18
+streamlit>=1.50
+plotly>=5.20
+numpy
+scipy
+scikit-image>=0.22
+nibabel>=5
+SimpleITK>=2.3
+Pillow
+pytest

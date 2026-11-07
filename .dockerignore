@@ -1,0 +1,6 @@
+.venv
+**/__pycache__
+resultats*
+docs
+tests
+deploy/coroseg.env

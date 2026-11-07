@@ -1,0 +1,11 @@
+# Dépendances du pont Orthanc (sans l'interface Streamlit). PyTorch s'installe à part (voir Dockerfile / README).
+TotalSegmentator>=2.18
+numpy
+scipy
+scikit-image>=0.22
+nibabel>=5
+SimpleITK>=2.3
+Pillow
+pydicom>=3.0
+highdicom>=0.25
+requests

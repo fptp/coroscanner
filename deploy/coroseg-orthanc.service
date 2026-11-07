@@ -1,0 +1,20 @@
+# Variante sans Docker (venv dans /opt/coroseg) :
+#   sudo cp deploy/coroseg-orthanc.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now coroseg-orthanc
+#   journalctl -u coroseg-orthanc -f
+[Unit]
+Description=CoroSeg - segmentation automatique des coroscanners recus par Orthanc
+After=network-online.target orthanc.service
+Wants=network-online.target
+
+[Service]
+User=coroseg
+WorkingDirectory=/opt/coroseg
+EnvironmentFile=/opt/coroseg/deploy/coroseg.env
+Environment=COROSEG_WORK_DIR=/var/lib/coroseg
+ExecStart=/opt/coroseg/.venv/bin/python -m coroseg_orthanc watch
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

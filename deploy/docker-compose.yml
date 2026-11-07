@@ -1,0 +1,30 @@
+# Worker CoroSeg à côté d'un Orthanc existant sur la VM.
+#   cp deploy/coroseg.env.example deploy/coroseg.env   (puis éditer)
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#   docker compose -f deploy/docker-compose.yml logs -f
+services:
+  coroseg:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      # args: { TORCH_INDEX: "https://download.pytorch.org/whl/cpu" }   # VM sans GPU
+    image: coroseg-orthanc
+    restart: unless-stopped
+    env_file: coroseg.env
+    # réseau de l'hôte : Orthanc joignable sur http://localhost:8042
+    # (si Orthanc est dans un autre compose, mettre le worker sur le même réseau et ORTHANC_URL=http://orthanc:8042)
+    network_mode: host
+    volumes:
+      - coroseg-data:/data     # poids TotalSegmentator, licence, résultats, état du worker
+    shm_size: 4gb
+    # GPU NVIDIA (nécessite nvidia-container-toolkit) ; supprimer ce bloc sur une VM sans GPU
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  coroseg-data:
