@@ -17,7 +17,10 @@ def load_env_file(path: str | None = None) -> None:
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
-            os.environ.setdefault(k.strip(), v.strip())
+            v = v.strip()
+            if len(v) >= 2 and v[0] == v[-1] and v[0] in "'\"":  # guillemets tolérés (comme systemd)
+                v = v[1:-1]
+            os.environ.setdefault(k.strip(), v)
 
 
 load_env_file()

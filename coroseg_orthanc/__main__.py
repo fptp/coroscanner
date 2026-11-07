@@ -46,7 +46,22 @@ def main(argv=None) -> int:
     if a.cmd == "check":
         from .device import describe, resolve_device
 
-        print(f"Orthanc {o.system()['Version']} joignable : {cfg.orthanc_url}")
+        import requests
+
+        print(f"URL Orthanc : {cfg.orthanc_url}  |  utilisateur : {cfg.orthanc_user or '(aucun)'}  |  "
+              f"mot de passe : {len(cfg.orthanc_password or '')} caractères")
+        try:
+            print(f"Orthanc {o.system()['Version']} joignable")
+        except requests.HTTPError as e:
+            if e.response is not None and e.response.status_code == 401:
+                print("ERREUR 401 : Orthanc refuse les identifiants (ORTHANC_USER / ORTHANC_PASSWORD "
+                      "dans /etc/coroseg/coroseg.env).")
+            else:
+                print(f"ERREUR : {e}")
+            return 1
+        except requests.RequestException as e:
+            print(f"ERREUR : Orthanc injoignable ({e.__class__.__name__}) : vérifier ORTHANC_URL et le pare-feu.")
+            return 1
         print(f"Calcul : {describe(resolve_device(cfg.device))}")
         print(f"Licence TotalSegmentator : {'renseignée' if cfg.license_number else 'ABSENTE (TOTALSEG_LICENSE)'}")
         return 0
