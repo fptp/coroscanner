@@ -20,33 +20,55 @@ sur la VM dans `/data/coroseg/<étude>/<série>/resultats/`.
 
 > ⚠️ Outil de recherche, non marqué CE : chaque image envoyée porte la mention « non validé pour le diagnostic ».
 
-## Installation sur la VM (Docker, recommandé)
+## Installation sur la VM (sans Docker, recommandé)
 
-Prérequis : Docker. Pour le GPU : pilote NVIDIA + `nvidia-container-toolkit`. Sans GPU, ça marche aussi, mais compter
-plusieurs minutes par examen.
+Même principe que SegBrainMRI : un environnement Python dans `/opt/coroseg`, un utilisateur `coroseg`, la configuration
+dans `/etc/coroseg/coroseg.env` et un service systemd `coroseg-orthanc`.
 
 ```bash
-cd coroseg
-cp deploy/coroseg.env.example deploy/coroseg.env
-nano deploy/coroseg.env          # ORTHANC_URL, identifiants, TOTALSEG_LICENSE=aca_..., COROSEG_DEVICE
-docker compose -f deploy/docker-compose.yml up -d --build
-docker compose -f deploy/docker-compose.yml logs -f
+cd ~/coroscanner && git pull
+./deploy/install.sh              # VM sans GPU : PyTorch CPU
+nano /etc/coroseg/coroseg.env    # ORTHANC_URL, ORTHANC_USER, ORTHANC_PASSWORD, TOTALSEG_LICENSE
+./deploy/install.sh              # relancer : démarre le service et teste la connexion à Orthanc
+journalctl -u coroseg-orthanc -f
 ```
 
-VM **sans GPU** : dans `deploy/docker-compose.yml`, supprimer le bloc `deploy:`, décommenter la ligne `args` (index PyTorch
-CPU) et mettre `COROSEG_DEVICE=cpu`.
+Dans `coroseg.env`, ne mettez pas de guillemets autour des valeurs, même si le mot de passe contient un `!`.
 
-Au premier examen, TotalSegmentator télécharge ses poids (quelques centaines de Mo, conservés dans le volume `/data`).
-La VM doit donc pouvoir joindre Internet, au moins à ce moment-là.
+### CPU aujourd'hui, GPU demain
+
+`COROSEG_DEVICE=auto` (défaut) : le worker utilise le GPU si PyTorch en voit un, sinon le CPU. Le jour où le GPU
+arrive, il suffit d'installer le pilote NVIDIA (`nvidia-smi` doit répondre), puis :
+
+```bash
+./deploy/install.sh --gpu
+```
+
+Rien à changer dans le code ni dans la configuration. Sur CPU, compter 5 à 15 minutes par examen. Pour limiter la charge
+de la VM, régler `COROSEG_THREADS`.
 
 ### Tester sans examen ni licence
 
 ```bash
-docker compose -f deploy/docker-compose.yml run --rm coroseg demo
+coroseg check     # connexion à Orthanc, CPU ou GPU, licence
+coroseg demo
 ```
 
-Cette commande envoie un fantôme synthétique dans Orthanc et le traite (segmentation simulée). L'étude
-« FANTOME^CoroSeg » doit apparaître avec les 4 séries ci-dessus.
+`coroseg demo` envoie un fantôme synthétique dans Orthanc et le traite
+(segmentation simulée, sans TotalSegmentator). L'étude « FANTOME^CoroSeg » doit apparaître avec les 4 séries
+ci-dessus.
+
+Au premier vrai examen, TotalSegmentator télécharge ses poids (quelques centaines de Mo, dans
+`/var/lib/coroseg/totalseg`). La VM doit donc pouvoir joindre Internet, au moins à ce moment-là.
+
+### Variante Docker
+
+`deploy/Dockerfile` et `deploy/docker-compose.yml` restent disponibles si Docker est installé :
+
+```bash
+cp deploy/coroseg.env.example deploy/coroseg.env
+docker compose -f deploy/docker-compose.yml up -d --build
+```
 
 ## Déclenchement
 
@@ -64,33 +86,22 @@ curl -X PUT -u user:mdp http://localhost:8042/studies/<ID>/labels/coroseg
 - En ligne de commande :
 
 ```bash
-docker compose -f deploy/docker-compose.yml run --rm coroseg series <ID étude>
+coroseg series <ID étude>
 ```
 
 ```bash
-docker compose -f deploy/docker-compose.yml run --rm coroseg process <ID étude> --serie <ID série>
+coroseg process <ID étude> --serie <ID série>
 ```
 
 `series` montre la série qui serait choisie. `process … --serie` force une série précise.
 
 Pour renvoyer aussi les résultats au PACS : `COROSEG_FORWARD_MODALITY=<nom de la modalité déclarée dans Orthanc>`.
 
-## Sans Docker (venv + systemd)
-
-```bash
-sudo mkdir -p /opt/coroseg && sudo cp -r . /opt/coroseg && cd /opt/coroseg
-python3 -m venv .venv && . .venv/bin/activate
-pip install torch --index-url https://download.pytorch.org/whl/cu124   # ou .../whl/cpu
-pip install -r requirements-orthanc.txt
-totalseg_set_license -l aca_XXXXXXXXXXXX
-cp deploy/coroseg.env.example deploy/coroseg.env && nano deploy/coroseg.env
-sudo cp deploy/coroseg-orthanc.service /etc/systemd/system/ && sudo systemctl enable --now coroseg-orthanc
-```
-
 ## Code
 
 ```
 coroseg_orthanc/config.py        variables d'environnement
+coroseg_orthanc/device.py        choix CPU / GPU (auto)
 coroseg_orthanc/orthanc.py       client REST Orthanc
 coroseg_orthanc/worker.py        surveillance (/changes, labels), choix de série, traitement, envoi
 coroseg_orthanc/dicom_export.py  DICOM SEG (highdicom), séries fusion / CPR / rapport (Secondary Capture)

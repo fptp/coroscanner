@@ -1,21 +1,29 @@
-# Service systemd (installation sans Docker, code dans /root/coroscanner, venv dans .venv) :
-#   cp deploy/coroseg-orthanc.service /etc/systemd/system/
-#   systemctl daemon-reload && systemctl enable --now coroseg-orthanc
-#   journalctl -u coroseg-orthanc -f
+# Installé par deploy/install.sh. Journal : journalctl -u coroseg-orthanc -f
 [Unit]
 Description=CoroSeg - segmentation automatique des coroscanners recus par Orthanc
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=root
-WorkingDirectory=/root/coroscanner
-EnvironmentFile=/root/coroscanner/deploy/coroseg.env
-Environment=COROSEG_WORK_DIR=/var/lib/coroseg
-Environment=PYTHONUNBUFFERED=1
-ExecStart=/root/coroscanner/.venv/bin/python -m coroseg_orthanc watch
-Restart=always
+Type=simple
+User=coroseg
+Group=coroseg
+WorkingDirectory=/opt/coroseg
+EnvironmentFile=/etc/coroseg/coroseg.env
+Environment=PYTHONUNBUFFERED=1 COROSEG_WORK_DIR=/var/lib/coroseg TOTALSEG_HOME_DIR=/var/lib/coroseg/totalseg
+ExecStart=/opt/coroseg/venv/bin/python -m coroseg_orthanc watch
+Restart=on-failure
 RestartSec=15
+# laisse le temps de finir l'examen en cours avant l'arrêt
+TimeoutStopSec=1800
+
+# Durcissement
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/coroseg
+ReadOnlyPaths=/opt/coroseg /etc/coroseg
 
 [Install]
 WantedBy=multi-user.target

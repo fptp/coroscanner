@@ -85,6 +85,7 @@ def process_study(orthanc: Orthanc, study_id: str, cfg: Config, series_id: str |
     from coroseg.pipeline import analyse, run
 
     from . import dicom_export as dx
+    from .device import resolve_device
 
     t0 = time.time()
     study = orthanc.study(study_id)
@@ -104,10 +105,11 @@ def process_study(orthanc: Orthanc, study_id: str, cfg: Config, series_id: str |
         shutil.rmtree(work)
     dcm_dir = orthanc.download_series(series_id, work / "dicom")
     src = dx.load_source(dcm_dir, log=lambda m: log("  " + m))
-    log(f"  volume {src.hu.shape[::-1]} chargé, segmentation ({cfg.device})…")
+    device = resolve_device(cfg.device, log=lambda m: log("  " + m))
+    log(f"  volume {src.hu.shape[::-1]} chargé, segmentation ({device})…")
 
     if segmenter is None:
-        res = run(src.ct, work / "_totalseg", license_number=cfg.license_number, device=cfg.device,
+        res = run(src.ct, work / "_totalseg", license_number=cfg.license_number, device=device,
                   log=lambda m: log("  " + m))
     else:
         cor, aorta = segmenter(src.ct, work)
@@ -199,7 +201,11 @@ class Worker:
             except Exception as e:
                 log(f"Orthanc injoignable ({cfg.orthanc_url}) : {e} — nouvel essai dans 10 s")
                 time.sleep(10)
-        log(f"Connecté à Orthanc {ver} ({cfg.orthanc_url}), mode « {cfg.trigger} », périphérique {cfg.device}")
+        from .device import describe, resolve_device, set_threads
+
+        set_threads(cfg.threads)
+        log(f"Connecté à Orthanc {ver} ({cfg.orthanc_url}), mode « {cfg.trigger} »")
+        log(f"Calcul : {describe(resolve_device(cfg.device, log=log))}")
         if self.state.data["last_change"] is None:
             self.state.data["last_change"] = 0 if from_start else o.last_change()
             self.state.save()

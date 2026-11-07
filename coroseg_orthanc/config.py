@@ -6,6 +6,23 @@ import os
 from dataclasses import dataclass, field
 
 
+def load_env_file(path: str | None = None) -> None:
+    """Charge /etc/coroseg/coroseg.env (ou COROSEG_ENV_FILE) sans écraser les variables déjà définies."""
+    path = path or os.environ.get("COROSEG_ENV_FILE", "/etc/coroseg/coroseg.env")
+    try:
+        lines = open(path, encoding="utf-8").read().splitlines()
+    except OSError:
+        return
+    for line in lines:
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip())
+
+
+load_env_file()
+
+
 def _env(name: str, default: str | None = None) -> str | None:
     v = os.environ.get(name)
     return v if v not in (None, "") else default
@@ -44,7 +61,8 @@ class Config:
 
     # --- segmentation ---------------------------------------------------------------------------------
     license_number: str | None = field(default_factory=lambda: _env("TOTALSEG_LICENSE"))
-    device: str = field(default_factory=lambda: _env("COROSEG_DEVICE", "gpu"))
+    device: str = field(default_factory=lambda: _env("COROSEG_DEVICE", "auto"))  # auto | cpu | gpu | gpu:N
+    threads: int | None = field(default_factory=lambda: int(_env("COROSEG_THREADS", "0")) or None)
     work_dir: str = field(default_factory=lambda: _env("COROSEG_WORK_DIR", "/data/coroseg"))
     keep_work: bool = field(default_factory=lambda: _bool("COROSEG_KEEP_WORK", True))
 
