@@ -72,6 +72,33 @@ docker compose -f deploy/docker-compose.yml up -d --build
 
 ## Déclenchement
 
+### Envoi manuel en DICOM (`COROSEG_TRIGGER=dicom`)
+
+CoroSeg ne surveille plus Orthanc : il écoute en DICOM, comme SegBrainMRI, et ne traite que ce qu'on lui envoie.
+
+| | |
+|---|---|
+| AET | `COROSEG` |
+| Hôte | 192.168.10.145 (VM IA) |
+| Port | `11113` (11112 est déjà pris par SegBrainMRI) |
+
+Dans Orthanc (192.168.10.172), déclarer la modalité, par exemple dans le fichier de configuration :
+
+```json
+"DicomModalities": {
+  "coroseg": { "AET": "COROSEG", "Host": "192.168.10.145", "Port": 11113 }
+}
+```
+
+Ensuite, dans Orthanc, ouvrir l'examen, « Envoyer vers une modalité DICOM », choisir `coroseg`. On peut envoyer
+l'étude entière : CoroSeg choisit lui-même la bonne série CT. Le traitement démarre 20 s après la dernière image
+reçue. Les résultats reviennent dans Orthanc par l'API REST (ORTHANC_URL et identifiants toujours nécessaires) et
+l'étude reçoit le label `coroseg-ok`. En cas d'échec, les images reçues et `erreur.txt` sont gardées dans
+`/var/lib/coroseg/echecs/`.
+
+### Surveillance d'Orthanc (`auto` / `label`)
+
+
 - `COROSEG_TRIGGER=auto` (défaut) : toute étude **stable** (aucune image reçue depuis `StableAge` secondes, 60 s par défaut
   dans Orthanc) qui contient une série CT éligible est traitée. Pour limiter aux coroscanners : `COROSEG_STUDY_REGEX=c(oe|œ)ur`
   (description d'étude contenant « coeur » ou « cœur », majuscules ou non). Les autres études sont ignorées

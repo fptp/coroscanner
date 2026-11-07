@@ -9,3 +9,4 @@ Pillow
 pydicom>=3.0
 highdicom>=0.25
 requests
+pynetdicom>=2.1

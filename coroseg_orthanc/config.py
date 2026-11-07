@@ -46,11 +46,18 @@ class Config:
     # --- déclenchement ----------------------------------------------------------------------------
     # auto  : toute étude stable contenant une série CT éligible est traitée
     # label : seules les études portant le label COROSEG_LABEL_TODO (ex. posé dans Orthanc Explorer 2)
+    # dicom : pas de surveillance d'Orthanc ; on pousse l'examen à l'AET COROSEG (envoi manuel)
     trigger: str = field(default_factory=lambda: _env("COROSEG_TRIGGER", "auto"))
     label_todo: str = field(default_factory=lambda: _env("COROSEG_LABEL_TODO", "coroseg"))
     label_done: str = field(default_factory=lambda: _env("COROSEG_LABEL_DONE", "coroseg-ok"))
     label_error: str = field(default_factory=lambda: _env("COROSEG_LABEL_ERROR", "coroseg-erreur"))
     poll_seconds: float = field(default_factory=lambda: float(_env("COROSEG_POLL_S", "10")))
+    # dicom : CoroSeg ne surveille pas Orthanc, il reçoit les examens poussés à la main (C-STORE)
+    dicom_aet: str = field(default_factory=lambda: _env("COROSEG_DICOM_AET", "COROSEG"))
+    dicom_port: int = field(default_factory=lambda: int(_env("COROSEG_DICOM_PORT", "11113")))
+    dicom_host: str = field(default_factory=lambda: _env("COROSEG_DICOM_HOST", "0.0.0.0"))
+    dicom_allowed_aets: str = field(default_factory=lambda: _env("COROSEG_DICOM_ALLOWED_AETS", ""))
+    dicom_settle_s: float = field(default_factory=lambda: float(_env("COROSEG_DICOM_SETTLE_S", "20")))
 
     # --- choix de la série ---------------------------------------------------------------------------
     min_slices: int = field(default_factory=lambda: int(_env("COROSEG_MIN_SLICES", "80")))

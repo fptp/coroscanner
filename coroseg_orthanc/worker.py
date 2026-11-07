@@ -82,14 +82,7 @@ def process_study(orthanc: Orthanc, study_id: str, cfg: Config, series_id: str |
 
     `segmenter(ct_nifti, work_dir)` -> (masque coronaires, masque aorte) permet de remplacer TotalSegmentator (tests).
     """
-    from coroseg.pipeline import analyse, run
-
-    from . import dicom_export as dx
-    from .device import resolve_device
-
     t0 = time.time()
-    study = orthanc.study(study_id)
-    st = study.get("MainDicomTags", {})
     if series_id is None:
         cands = eligible_series(orthanc, study_id, cfg)
         if not cands:
@@ -102,7 +95,22 @@ def process_study(orthanc: Orthanc, study_id: str, cfg: Config, series_id: str |
     if work.exists():
         shutil.rmtree(work)
     dcm_dir = orthanc.download_series(series_id, work / "dicom")
+    r = process_dicom_folder(orthanc, dcm_dir, work, cfg, segmenter)
+    r["series_source"] = series_id
+    r["seconds"] = round(time.time() - t0, 1)
+    return r
+
+
+def process_dicom_folder(orthanc: Orthanc, dcm_dir: Path, work: Path, cfg: Config, segmenter=None) -> dict:
+    """Segmente une série CT présente sur disque et envoie les résultats dans Orthanc (même StudyInstanceUID)."""
+    from coroseg.pipeline import analyse, run
+
+    from . import dicom_export as dx
+    from .device import resolve_device
+
+    t0 = time.time()
     src = dx.load_source(dcm_dir, log=lambda m: log("  " + m))
+
     device = resolve_device(cfg.device, log=lambda m: log("  " + m))
     log(f"  volume {src.hu.shape[::-1]} chargé, segmentation ({device})…")
 
@@ -129,20 +137,22 @@ def process_study(orthanc: Orthanc, study_id: str, cfg: Config, series_id: str |
     if cfg.send_report:
         objs.append(dx.make_report_image(src, res, jpeg=cfg.jpeg, institution=cfg.institution))
 
-    ids, series_out = [], set()
+    ids, series_out, study_out = [], set(), None
     for ds in objs:
         r = orthanc.upload(dx.to_bytes(ds))
         ids.append(r["ID"])
         series_out.add(r.get("ParentSeries"))
+        study_out = r.get("ParentStudy") or study_out
     log(f"  {len(ids)} instance(s) envoyée(s) dans Orthanc ({len(series_out)} série(s))")
     if cfg.forward_modality:
         orthanc.store_to_modality(cfg.forward_modality, sorted(s for s in series_out if s))
         log(f"  résultats transférés vers la modalité {cfg.forward_modality}")
     if not cfg.keep_work:
-        shutil.rmtree(work / "dicom", ignore_errors=True)
+        shutil.rmtree(dcm_dir, ignore_errors=True)
         shutil.rmtree(work / "_totalseg", ignore_errors=True)
-    return {"series_source": series_id, "instances": ids, "series": sorted(s for s in series_out if s),
+    return {"instances": ids, "series": sorted(s for s in series_out if s), "study": study_out,
             "warnings": res.warnings, "seconds": round(time.time() - t0, 1)}
+
 
 
 # ----------------------------------------------------------------------------------------------------

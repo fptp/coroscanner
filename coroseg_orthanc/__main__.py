@@ -1,6 +1,6 @@
 """Pont Orthanc ↔ CoroSeg.
 
-    python -m coroseg_orthanc watch                 # service : surveille Orthanc et traite les coroscanners
+    python -m coroseg_orthanc watch                 # service : surveille Orthanc (auto/label) ou reçoit en DICOM (dicom)
     python -m coroseg_orthanc process <ID étude>    # traite une étude tout de suite (ID Orthanc)
     python -m coroseg_orthanc series <ID étude>     # liste les séries candidates et celle qui serait choisie
     python -m coroseg_orthanc demo                  # envoie un fantôme dans Orthanc et le traite (sans licence)
@@ -41,7 +41,12 @@ def main(argv=None) -> int:
     o = Orthanc(cfg.orthanc_url, cfg.orthanc_user, cfg.orthanc_password)
 
     if a.cmd == "watch":
-        Worker(cfg).loop(from_start=a.depuis_le_debut)
+        if cfg.trigger == "dicom":
+            from .receiver import serve
+
+            serve(cfg)
+        else:
+            Worker(cfg).loop(from_start=a.depuis_le_debut)
         return 0
     if a.cmd == "check":
         from .device import describe, resolve_device
@@ -64,6 +69,10 @@ def main(argv=None) -> int:
             return 1
         print(f"Calcul : {describe(resolve_device(cfg.device))}")
         print(f"Licence TotalSegmentator : {'renseignée' if cfg.license_number else 'ABSENTE (TOTALSEG_LICENSE)'}")
+        if cfg.trigger == "dicom":
+            print(f"Mode envoi manuel : AET {cfg.dicom_aet}, port {cfg.dicom_port}")
+        else:
+            print(f"Mode {cfg.trigger} : surveillance d'Orthanc")
         return 0
     if a.cmd == "series":
         print(json.dumps(eligible_series(o, a.study, cfg), indent=1, ensure_ascii=False))
