@@ -30,9 +30,20 @@ cp -r "$REPO_DIR/coroseg" "$REPO_DIR/coroseg_orthanc" "$REPO_DIR/requirements-or
 echo "==> Environnement Python ($PREFIX/venv) — PyTorch depuis $TORCH_INDEX"
 [[ -d "$PREFIX/venv" ]] || python3 -m venv "$PREFIX/venv"
 "$PREFIX/venv/bin/pip" install -q --upgrade pip
-# torch doit venir de l'index choisi (CPU ou CUDA) : on le réinstalle si on change de mode
-"$PREFIX/venv/bin/pip" install -q --force-reinstall torch --index-url "$TORCH_INDEX"
+# torch et torchvision doivent venir du même index (sinon : "operator torchvision::nms does not exist").
+# On retire d'abord un torchvision installé depuis PyPI (dépendance de TotalSegmentator / timm).
+"$PREFIX/venv/bin/pip" uninstall -q -y torchvision 2>/dev/null || true
+"$PREFIX/venv/bin/pip" install -q torch torchvision --index-url "$TORCH_INDEX"
 "$PREFIX/venv/bin/pip" install -q -r "$PREFIX/requirements-orthanc.txt"
+# contrôle : si torchvision ne s'importe pas (ou si on change CPU <-> GPU), on réinstalle la paire depuis l'index
+WANT_CUDA=0; [[ "$TORCH_INDEX" == *cu1* ]] && WANT_CUDA=1
+if ! "$PREFIX/venv/bin/python" -c "
+import sys, torch, torchvision
+sys.exit(0 if (torch.version.cuda is not None) == bool($WANT_CUDA) else 1)" 2>/dev/null; then
+  echo "    réinstallation de torch + torchvision depuis $TORCH_INDEX"
+  "$PREFIX/venv/bin/pip" install -q --force-reinstall --no-deps torch torchvision --index-url "$TORCH_INDEX"
+fi
+"$PREFIX/venv/bin/python" -c "import torch, torchvision; print('    torch', torch.__version__, '| torchvision', torchvision.__version__)"
 
 echo "==> Configuration ($ETC/coroseg.env)"
 NEW_CONF=0
