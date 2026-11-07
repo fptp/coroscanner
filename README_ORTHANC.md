@@ -73,8 +73,9 @@ docker compose -f deploy/docker-compose.yml up -d --build
 ## Déclenchement
 
 - `COROSEG_TRIGGER=auto` (défaut) : toute étude **stable** (aucune image reçue depuis `StableAge` secondes, 60 s par défaut
-  dans Orthanc) qui contient une série CT éligible est traitée. Pour limiter aux coroscanners, utiliser par exemple
-  `COROSEG_STUDY_REGEX=coro|cardi`.
+  dans Orthanc) qui contient une série CT éligible est traitée. Pour limiter aux coroscanners : `COROSEG_STUDY_REGEX=c(oe|œ)ur`
+  (description d'étude contenant « coeur » ou « cœur », majuscules ou non). Les autres études sont ignorées
+  sans label ; le label `coroseg` force quand même le traitement.
 - `COROSEG_TRIGGER=label` : seules les études auxquelles on ajoute le label **`coroseg`** sont traitées (dans
   Orthanc Explorer 2 ou via l'API).
 - Dans les deux modes, **pour relancer une étude**, il suffit de lui ajouter le label `coroseg`. Par l'API :

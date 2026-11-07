@@ -90,8 +90,6 @@ def process_study(orthanc: Orthanc, study_id: str, cfg: Config, series_id: str |
     t0 = time.time()
     study = orthanc.study(study_id)
     st = study.get("MainDicomTags", {})
-    if cfg.study_regex and not re.search(cfg.study_regex, st.get("StudyDescription", "") or "", re.I):
-        raise RuntimeError(f"description d'étude « {st.get('StudyDescription', '')} » hors filtre COROSEG_STUDY_REGEX")
     if series_id is None:
         cands = eligible_series(orthanc, study_id, cfg)
         if not cands:
@@ -172,6 +170,12 @@ class Worker:
         pt = info.get("PatientMainDicomTags", {})
         log(f"Étude {study_id} — {pt.get('PatientName', '?')} — {tags.get('StudyDate', '')} "
             f"« {tags.get('StudyDescription', '')} »")
+        desc = tags.get("StudyDescription", "") or ""
+        if not force and cfg.study_regex and not re.search(cfg.study_regex, desc, re.I):
+            log(f"  description hors filtre COROSEG_STUDY_REGEX ({cfg.study_regex}) : ignorée")
+            self.state.data["done"][study_id] = {"statut": "ignorée"}
+            self.state.save()
+            return
         if not force and self.cfg.trigger == "auto" and not eligible_series(o, study_id, cfg):
             log("  pas de série CT éligible : ignorée")
             self.state.data["done"][study_id] = {"statut": "ignorée"}
