@@ -83,6 +83,8 @@ class Config:
     fusion_alpha: float = field(default_factory=lambda: float(_env("COROSEG_FUSION_ALPHA", "0.55")))
     send_cpr: bool = field(default_factory=lambda: _bool("COROSEG_SEND_CPR", True))
     send_report: bool = field(default_factory=lambda: _bool("COROSEG_SEND_REPORT", True))
+    # lignes centrales en DICOM SR 3D (série 9005), lues par le viewer pour la CPR interactive
+    send_centerlines: bool = field(default_factory=lambda: _bool("COROSEG_SEND_CENTERLINES", True))
     jpeg: bool = field(default_factory=lambda: _bool("COROSEG_JPEG", True))
     window_level: float = field(default_factory=lambda: float(_env("COROSEG_WL", "300")))
     window_width: float = field(default_factory=lambda: float(_env("COROSEG_WW", "900")))

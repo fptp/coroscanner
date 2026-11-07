@@ -474,3 +474,88 @@ def _wrap(text: str, n: int) -> list[str]:
         else:
             cur = f"{cur} {w}".strip()
     return lines + ([cur] if cur else [])
+
+
+# ----------------------------------------------------------------------------------------------------
+# lignes centrales (DICOM SR 3D) : exploitables par un viewer (CPR interactive, VR)
+# ----------------------------------------------------------------------------------------------------
+# Codes privés (schéma 99COROSEG) qui identifient les éléments du SR ; le viewer les cherche par CodeValue.
+CL_CODES = {
+    "root": ("CL-ROOT", "Lignes centrales coronaires CoroSeg"),
+    "vessel": ("CL-VESSEL", "Vaisseau"),
+    "name": ("CL-NAME", "Nom du vaisseau"),
+    "label": ("CL-LABEL", "Code CoroSeg du vaisseau"),
+    "line": ("CL-LINE", "Ligne centrale"),
+    "radius": ("CL-RADIUS", "Rayons du masque (mm)"),
+    "length": ("CL-LENGTH", "Longueur"),
+}
+
+
+def _cl_code(key):
+    from pydicom.sr.coding import Code
+
+    v, m = CL_CODES[key]
+    return Code(v, "99COROSEG", m)
+
+
+def make_centerline_sr(src: SourceSeries, res: CoroResult, step_mm: float = 1.0, series_number: int = 9005,
+                       institution: str = "") -> Dataset:
+    """Comprehensive 3D SR : pour chaque vaisseau, une POLYLINE SCOORD3D en coordonnées patient (LPS, mm).
+
+    Structure (codes 99COROSEG) :
+      CONTAINER CL-ROOT
+        CONTAINER CL-VESSEL                       (un par ligne centrale : TC→IVA, TC→Cx, CD, branches…)
+          TEXT     CL-NAME    « TC → IVA »
+          TEXT     CL-LABEL   « IVA »  (TC, IVA, Cx, CD, Diag, Marg, Br. CD, Bissec.)
+          SCOORD3D CL-LINE    POLYLINE, points tous les `step_mm` mm, de l'ostium vers la distalité
+          TEXT     CL-RADIUS  rayons du masque (mm) aux mêmes points, séparés par des espaces
+          NUM      CL-LENGTH  longueur (mm)
+    """
+    import highdicom as hd
+    from pydicom.sr.codedict import codes
+
+    ref = src.datasets[0]
+    for_uid = ref.FrameOfReferenceUID
+    root = hd.sr.ContainerContentItem(name=_cl_code("root"), template_id=None)
+    items = []
+    for cl in res.centerlines:
+        if cl.length < 5 or len(cl.points) < 2:
+            continue
+        s_new = np.arange(0.0, cl.length + 1e-6, step_mm)
+        if s_new[-1] < cl.length - 1e-3:
+            s_new = np.append(s_new, cl.length)
+        pts = np.stack([np.interp(s_new, cl.s, cl.points[:, k]) for k in range(3)], axis=1)
+        rad = np.interp(s_new, cl.s, cl.radius)
+        lps = pts * np.array([-1.0, -1.0, 1.0])  # RAS (CoroSeg) → LPS (DICOM)
+        v = hd.sr.ContainerContentItem(name=_cl_code("vessel"), relationship_type="CONTAINS")
+        v.ContentSequence = [
+            hd.sr.TextContentItem(name=_cl_code("name"), value=cl.name, relationship_type="CONTAINS"),
+            hd.sr.TextContentItem(name=_cl_code("label"), value=LABELS.get(cl.label, ("?",))[0],
+                                  relationship_type="CONTAINS"),
+            hd.sr.Scoord3DContentItem(name=_cl_code("line"), graphic_type=hd.sr.GraphicTypeValues3D.POLYLINE,
+                                      graphic_data=lps.astype(np.float32), frame_of_reference_uid=for_uid,
+                                      relationship_type="CONTAINS"),
+            hd.sr.TextContentItem(name=_cl_code("radius"), value=" ".join(f"{r:.2f}" for r in rad),
+                                  relationship_type="CONTAINS"),
+            hd.sr.NumContentItem(name=_cl_code("length"), value=round(float(cl.length), 1),
+                                 unit=codes.UCUM.Millimeter, relationship_type="CONTAINS"),
+        ]
+        items.append(v)
+    if not items:
+        raise ValueError("aucune ligne centrale à exporter")
+    root.ContentSequence = items
+    sr = hd.sr.Comprehensive3DSR(
+        evidence=src.datasets,
+        content=root,
+        series_instance_uid=hd.UID(),
+        series_number=series_number,
+        sop_instance_uid=hd.UID(),
+        instance_number=1,
+        manufacturer=MANUFACTURER,
+        institution_name=institution or None,
+        is_complete=True,
+    )
+    sr.SeriesDescription = "CoroSeg - lignes centrales"
+    sr.SpecificCharacterSet = "ISO_IR 192"
+    sr.SoftwareVersions = __version__
+    return sr

@@ -61,3 +61,25 @@ def test_secondary_captures(processed):
         back = pydicom.dcmread(io.BytesIO(dx.to_bytes(ds)))
         assert back.StudyInstanceUID == src.datasets[0].StudyInstanceUID
         assert back.Manufacturer == "CoroSeg"
+
+
+def test_centerline_sr(processed):
+    src, res, _ = processed
+    sr = dx.make_centerline_sr(src, res)
+    back = pydicom.dcmread(io.BytesIO(dx.to_bytes(sr)))
+    vessels = back.ContentSequence
+    assert len(vessels) == len([c for c in res.centerlines if c.length >= 5])
+    by_code = {}
+    for v in vessels:
+        d = {it.ConceptNameCodeSequence[0].CodeValue: it for it in v.ContentSequence}
+        by_code[d["CL-LABEL"].TextValue] = d
+        line = np.asarray(d["CL-LINE"].GraphicData, float).reshape(-1, 3)
+        radii = [float(x) for x in d["CL-RADIUS"].TextValue.split()]
+        assert len(radii) == len(line)
+        assert d["CL-LINE"].ReferencedFrameOfReferenceUID == src.datasets[0].FrameOfReferenceUID
+        # les points (LPS) tombent dans la lumière opacifiée du fantôme
+        import SimpleITK as sitk
+        idx = [src.sitk_img.TransformPhysicalPointToIndex(tuple(map(float, p))) for p in line[::5]]
+        hu = [src.hu[k, j, i] for i, j, k in idx]
+        assert np.median(hu) > 300
+    assert {"IVA", "Cx", "CD"} <= set(by_code)

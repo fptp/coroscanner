@@ -136,6 +136,8 @@ def process_dicom_folder(orthanc: Orthanc, dcm_dir: Path, work: Path, cfg: Confi
                                    institution=cfg.institution)
     if cfg.send_report:
         objs.append(dx.make_report_image(src, res, jpeg=cfg.jpeg, institution=cfg.institution))
+    if cfg.send_centerlines and res.centerlines:
+        objs.append(dx.make_centerline_sr(src, res, institution=cfg.institution))
 
     ids, series_out, study_out = [], set(), None
     for ds in objs:

@@ -14,6 +14,7 @@ Un **worker** tourne sur la VM à côté d'Orthanc. Quand un coroscanner arrive 
 | 9002 `CoroSeg - fusion coronaires` | coupes axiales avec les coronaires colorées (RGB) | **toutes** les visionneuses / PACS |
 | 9003 `CoroSeg - CPR` | une image par vaisseau principal : CPR redressée à 0/45/90/135° + profil de calibre | toutes |
 | 9004 `CoroSeg - rapport` | tableau longueurs / calibres / rétrécissement max, avertissements, vue antérieure de l'arbre | toutes |
+| 9005 `CoroSeg - lignes centrales` | DICOM SR 3D : une polyligne par vaisseau (coordonnées patient LPS, 1 point/mm, de l'ostium vers la distalité) + rayons du masque ; codes `99COROSEG` `CL-ROOT`, `CL-VESSEL`, `CL-NAME`, `CL-LABEL`, `CL-LINE`, `CL-RADIUS`, `CL-LENGTH` | viewer (CPR interactive) |
 
 Il pose ensuite le label `coroseg-ok` (ou `coroseg-erreur`) sur l'étude. Les fichiers NIfTI, STL et `rapport.json` restent
 sur la VM dans `/data/coroseg/<étude>/<série>/resultats/`.
