@@ -86,7 +86,8 @@ def main(argv=None) -> int:
         log(f"Fantôme envoyé : {len(files)} coupes, étude {study}")
         r = process_study(o, study, cfg, segmenter=phantom_segmenter)
         o.add_label(study, cfg.label_done)
-        print(json.dumps(r, indent=1, ensure_ascii=False))
+        log(f"Terminé en {r['seconds']} s : {len(r['instances'])} images dans {len(r['series'])} séries, "
+            f"étude « FANTOME^CoroSeg » dans Orthanc.")
         return 0
     return 1
 
